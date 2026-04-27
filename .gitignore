@@ -1,0 +1,31 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# env
+.env
+.env.*
+!.env.example
+
+# build
+.build/
+*.zip
+
+# aws / agentcore generated
+.bedrock_agentcore/
+.bedrock_agentcore.yaml
+.env.runtime
+
+# editor
+.vscode/
+.idea/
+*.swp
+
+# os
+.DS_Store
+node_modules/
+test-results/
+hackathon-info.txt
+.build-tools.zip

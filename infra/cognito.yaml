@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Cognito identity for AgentCore Gateway + Runtime ingress auth
+
+Parameters:
+  ProjectTag: {Type: String, Default: hackathon-2026}
+  HostedUIDomainPrefix:
+    Type: String
+    Default: caixa-446394402238
+    Description: Must be globally unique within Cognito's shared namespace
+  CallbackUrls:
+    Type: CommaDelimitedList
+    # Cognito requires HTTPS (except localhost). Add prod HTTPS URL via stack update later.
+    Default: "http://localhost:8080/auth/callback,https://caixa.example.com/auth/callback"
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: caixa-pool
+      AutoVerifiedAttributes: [email]
+      UsernameAttributes: [email]
+      # Self-signup enabled so participants can register themselves at the
+      # hackathon — no admin action needed per person. Email verification
+      # via code keeps it clean.
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+      Schema:
+        - {Name: email, AttributeDataType: String, Required: true, Mutable: true}
+        - {Name: name, AttributeDataType: String, Required: false, Mutable: true}
+      UserPoolTags:
+        Project: !Ref ProjectTag
+        Component: caixa-auth
+
+  # Resource server defines the API (audience) and scopes that the Gateway will accept
+  ResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      Identifier: caixa-api
+      Name: Caixa API
+      Scopes:
+        - {ScopeName: read,  ScopeDescription: Read items/threads}
+        - {ScopeName: write, ScopeDescription: Write items/threads}
+        - {ScopeName: admin, ScopeDescription: Admin operations}
+
+  # Web app client — authorization_code + PKCE flow for the frontend
+  AppClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: ResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: caixa-web
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AllowedOAuthFlows: [code]
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - openid
+        - email
+        - profile
+        - caixa-api/read
+        - caixa-api/write
+      CallbackURLs: !Ref CallbackUrls
+      LogoutURLs: !Ref CallbackUrls
+      SupportedIdentityProviders: [COGNITO]
+      PreventUserExistenceErrors: ENABLED
+      # Short-lived access tokens (1h) minimize leak blast-radius; refresh tokens (30d)
+      # give users a smooth UX without frequent re-authentication.
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+
+  # Service-to-service client for AgentCore Runtime invocations using client_credentials
+  ServiceClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: ResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: caixa-service
+      GenerateSecret: true
+      AllowedOAuthFlows: [client_credentials]
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - caixa-api/read
+        - caixa-api/write
+      ExplicitAuthFlows: []
+
+  HostedUIDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Ref HostedUIDomainPrefix
+
+Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+    Export: {Name: CaixaUserPoolId}
+  UserPoolArn:
+    Value: !GetAtt UserPool.Arn
+    Export: {Name: CaixaUserPoolArn}
+  WebClientId:
+    Value: !Ref AppClient
+    Export: {Name: CaixaWebClientId}
+  ServiceClientId:
+    Value: !Ref ServiceClient
+    Export: {Name: CaixaServiceClientId}
+  HostedUIDomain:
+    Value: !Sub "https://${HostedUIDomain}.auth.${AWS::Region}.amazoncognito.com"
+    Export: {Name: CaixaHostedUIDomain}
+  Issuer:
+    Value: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}"
+    Export: {Name: CaixaIssuer}
+  JwksUri:
+    Value: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}/.well-known/jwks.json"
+    Export: {Name: CaixaJwksUri}
+  DiscoveryUrl:
+    Value: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}/.well-known/openid-configuration"
+    Export: {Name: CaixaDiscoveryUrl}

@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Entrar — Caixa Postal</title>
+<style>
+:root{--bg:#0b141a;--panel:#111b21;--hdr:#202c33;--text:#e9edef;--sub:#8696a0;--stroke:#2a3942;--accent:#00a884;--hover:#2a3942;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,system-ui,Helvetica,Arial,sans-serif}
+.wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.card{background:var(--panel);border:1px solid var(--stroke);border-radius:12px;padding:32px;width:100%;max-width:380px}
+.logo{text-align:center;font-size:36px;margin-bottom:8px}
+h1{text-align:center;font-size:20px;margin:0 0 4px;font-weight:600}
+.sub{text-align:center;color:var(--sub);font-size:13px;margin-bottom:24px}
+label{display:block;color:var(--sub);font-size:12px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--stroke);border-radius:6px;padding:10px 12px;font-size:14px;margin-bottom:14px;outline:none;font-family:inherit}
+input:focus{border-color:var(--accent)}
+.btn{width:100%;background:var(--accent);color:#052f25;border:none;border-radius:6px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn:hover{filter:brightness(1.1)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.toggle{text-align:center;margin-top:16px;font-size:13px;color:var(--sub)}
+.toggle a{color:var(--accent);text-decoration:none;cursor:pointer}
+.toggle a:hover{text-decoration:underline}
+.error{background:#2d1515;border:1px solid #ff5252;color:#ff8a8a;padding:8px 10px;border-radius:6px;font-size:13px;margin-bottom:14px;display:none}
+.info{background:#152d25;border:1px solid var(--accent);color:#b3f0e0;padding:8px 10px;border-radius:6px;font-size:13px;margin-bottom:14px;display:none}
+.back{text-align:center;margin-top:12px;font-size:13px}
+.back a{color:var(--sub);text-decoration:none}
+.back a:hover{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="logo">📬</div>
+    <h1 id="title">Entrar</h1>
+    <p class="sub" id="subtitle">Faca login pra ter sua area pessoal</p>
+
+    <div class="error" id="error"></div>
+    <div class="info" id="info"></div>
+
+    <form id="loginForm" onsubmit="return doLogin(event)">
+      <div id="nameField" style="display:none">
+        <label for="name">Nome</label>
+        <input type="text" id="name" placeholder="Seu nome" autocomplete="name"/>
+      </div>
+      <label for="email">Usuario (e-mail)</label>
+      <input type="email" id="email" placeholder="seu@email.com" required autocomplete="email"/>
+      <label for="password">Senha</label>
+      <input type="password" id="password" placeholder="Minimo 8 caracteres" required autocomplete="current-password" minlength="8"/>
+      <div id="confirmField" style="display:none">
+        <label for="confirm">Confirmar senha</label>
+        <input type="password" id="confirm" placeholder="Repita a senha" autocomplete="new-password"/>
+      </div>
+      <button type="submit" class="btn" id="submitBtn">Entrar</button>
+    </form>
+
+    <div class="toggle" id="toggleRow">
+      Nao tem conta? <a onclick="toggleMode()">Criar conta</a>
+    </div>
+    <div class="back">
+      <a href="/">Voltar ao app</a>
+    </div>
+  </div>
+</div>
+
+<script>
+let mode = 'login'; // login | signup
+
+function toggleMode() {
+  mode = mode === 'login' ? 'signup' : 'login';
+  render();
+}
+
+function render() {
+  const t = document.getElementById('title');
+  const s = document.getElementById('subtitle');
+  const nf = document.getElementById('nameField');
+  const cf = document.getElementById('confirmField');
+  const btn = document.getElementById('submitBtn');
+  const tog = document.getElementById('toggleRow');
+  document.getElementById('error').style.display = 'none';
+  document.getElementById('info').style.display = 'none';
+
+  if (mode === 'login') {
+    t.textContent = 'Entrar';
+    s.textContent = 'Faca login pra ter sua area pessoal';
+    nf.style.display = 'none';
+    cf.style.display = 'none';
+    btn.textContent = 'Entrar';
+    tog.innerHTML = 'Nao tem conta? <a onclick="toggleMode()">Criar conta</a>';
+  } else {
+    t.textContent = 'Criar conta';
+    s.textContent = 'Registre-se para participar do hackathon';
+    nf.style.display = 'block';
+    cf.style.display = 'block';
+    btn.textContent = 'Criar conta';
+    tog.innerHTML = 'Ja tem conta? <a onclick="toggleMode()">Entrar</a>';
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function showInfo(msg) {
+  const el = document.getElementById('info');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  document.getElementById('error').style.display = 'none';
+
+  try {
+    if (mode === 'login') {
+      const r = await fetch('/auth/signin', {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          email: document.getElementById('email').value,
+          password: document.getElementById('password').value,
+        }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        window.location.href = '/';
+      } else {
+        showError(d.message || 'Erro ao entrar');
+      }
+    } else {
+      const pw = document.getElementById('password').value;
+      const cf = document.getElementById('confirm').value;
+      if (pw !== cf) { showError('Senhas nao coincidem'); return; }
+      const r = await fetch('/auth/signup', {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          email: document.getElementById('email').value,
+          password: pw,
+          name: document.getElementById('name').value || undefined,
+        }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        // Server auto-confirmed and set the session cookie — go straight to app.
+        window.location.href = '/';
+      } else {
+        showError(d.message || 'Erro ao criar conta');
+      }
+    }
+  } catch(err) {
+    showError('Erro de conexao');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+render();
+</script>
+</body>
+</html>

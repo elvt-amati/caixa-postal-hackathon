@@ -1,0 +1,177 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudWatch alarms for the Caixa Postal event window — alarms that page before users notice.
+
+Parameters:
+  ProjectTag:     {Type: String, Default: hackathon-2026}
+  NotifyEmail:    {Type: String, Default: amati.silva@elevata.io}
+  ClusterName:    {Type: String, Default: caixa}
+  ServiceName:    {Type: String, Default: caixa}
+  LambdaName:     {Type: String, Default: caixa-tools}
+  TableName:      {Type: String, Default: caixa-items}
+  # Dimension tail, e.g. "app/caixa-alb/d22deb090e098495"
+  AlbDimension:   {Type: String}
+  # e.g. "targetgroup/caixa-tg/3d87c27996fc6785"
+  TgDimension:    {Type: String}
+  # Bedrock model identifier for throttle alarms. Cross-region inference profile.
+  ModelId:        {Type: String, Default: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"}
+  # CloudFront distribution id — alarms on 5xx/origin latency. Empty => skip.
+  CloudFrontId:   {Type: String, Default: ""}
+
+Conditions:
+  HasCloudFront: !Not [!Equals [!Ref CloudFrontId, ""]]
+
+Resources:
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: caixa-alarms
+      DisplayName: Caixa event alarms
+      Subscription:
+        - {Endpoint: !Ref NotifyEmail, Protocol: email}
+      Tags: [{Key: Project, Value: !Ref ProjectTag}]
+
+  # 1. ECS running task count — if we drop below 1 in any minute, users are offline.
+  EcsRunningTasksLow:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: caixa-ecs-running-tasks-low
+      AlarmDescription: ECS service has fewer than 1 running task
+      Namespace: AWS/ECS
+      MetricName: RunningTaskCount
+      Dimensions:
+        - {Name: ClusterName, Value: !Ref ClusterName}
+        - {Name: ServiceName, Value: !Ref ServiceName}
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions: [!Ref Topic]
+      OKActions: [!Ref Topic]
+
+  # 2. ALB 5xx from the target (our code), >5 in 5 min
+  AlbTarget5xx:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: caixa-alb-target-5xx
+      AlarmDescription: ALB seeing >5 HTTP 5xx from target group in 5 min
+      Namespace: AWS/ApplicationELB
+      MetricName: HTTPCode_Target_5XX_Count
+      Dimensions:
+        - {Name: LoadBalancer, Value: !Ref AlbDimension}
+        - {Name: TargetGroup,  Value: !Ref TgDimension}
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref Topic]
+      OKActions: [!Ref Topic]
+
+  # 3. ALB unhealthy hosts — any target failing health checks
+  AlbUnhealthyHosts:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: caixa-alb-unhealthy-hosts
+      AlarmDescription: Target group has at least one unhealthy host for 2 min
+      Namespace: AWS/ApplicationELB
+      MetricName: UnHealthyHostCount
+      Dimensions:
+        - {Name: LoadBalancer, Value: !Ref AlbDimension}
+        - {Name: TargetGroup,  Value: !Ref TgDimension}
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref Topic]
+      OKActions: [!Ref Topic]
+
+  # 4. Bedrock invocation throttles — user hits quota cap. Fires early so we can ask for a bump.
+  BedrockThrottles:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: caixa-bedrock-throttles
+      AlarmDescription: Bedrock InvocationClientErrors throttles >0 in 5 min (quota cap hit)
+      Namespace: AWS/Bedrock
+      MetricName: InvocationThrottles
+      Dimensions:
+        - {Name: ModelId, Value: !Ref ModelId}
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref Topic]
+      OKActions: [!Ref Topic]
+
+  # 5. Lambda errors on the tools fn — every tool call failure is user-facing
+  LambdaErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: caixa-lambda-tools-errors
+      AlarmDescription: caixa-tools Lambda errors >3 in 5 min
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - {Name: FunctionName, Value: !Ref LambdaName}
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref Topic]
+      OKActions: [!Ref Topic]
+
+  # 6. DynamoDB throttled requests — hot partition or provisioned too low.
+  DynamoThrottles:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: caixa-ddb-throttled
+      AlarmDescription: DynamoDB ThrottledRequests >0 in 5 min
+      Namespace: AWS/DynamoDB
+      MetricName: ThrottledRequests
+      Dimensions:
+        - {Name: TableName, Value: !Ref TableName}
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref Topic]
+      OKActions: [!Ref Topic]
+
+  # 7+8. CloudFront 5xx + origin latency — CF is in us-east-1 for metrics
+  # regardless of distribution placement. Only created when CloudFrontId set.
+  CloudFront5xx:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasCloudFront
+    Properties:
+      AlarmName: caixa-cloudfront-5xx
+      AlarmDescription: CloudFront 5xxErrorRate >2% for 5 min (origin or CF failing)
+      Namespace: AWS/CloudFront
+      MetricName: 5xxErrorRate
+      Dimensions:
+        - {Name: DistributionId, Value: !Ref CloudFrontId}
+        - {Name: Region,         Value: Global}
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 2
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref Topic]
+      OKActions: [!Ref Topic]
+
+Outputs:
+  TopicArn:
+    Value: !Ref Topic
+    Export: {Name: CaixaAlarmsTopicArn}

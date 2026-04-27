@@ -1,0 +1,9 @@
+fastapi==0.115.12
+uvicorn[standard]==0.32.1
+boto3>=1.40.0
+botocore>=1.40.0
+strands-agents>=1.15.0
+ag-ui-protocol>=0.1.10
+ag_ui_strands>=0.1.7
+python-multipart==0.0.12
+pyyaml>=6.0

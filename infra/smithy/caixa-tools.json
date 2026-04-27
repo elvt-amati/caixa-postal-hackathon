@@ -1,0 +1,298 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "caixa#CaixaService": {
+      "type": "service",
+      "version": "1.0.0",
+      "traits": {
+        "aws.protocols#restJson1": {},
+        "smithy.api#title": "Caixa Postal Tools",
+        "smithy.api#documentation": "All tools Caixa Postal agents can invoke through AgentCore Gateway."
+      },
+      "operations": [
+        {"target": "caixa#CreateTask"},
+        {"target": "caixa#CreatePayment"},
+        {"target": "caixa#CreateReminder"},
+        {"target": "caixa#SaveContact"},
+        {"target": "caixa#SaveNote"},
+        {"target": "caixa#SendEmail"},
+        {"target": "caixa#ListTasks"},
+        {"target": "caixa#ListPayments"},
+        {"target": "caixa#ListReminders"},
+        {"target": "caixa#UpdateItem"},
+        {"target": "caixa#DeleteItem"},
+        {"target": "caixa#UndoDelete"},
+        {"target": "caixa#RenderChart"},
+        {"target": "caixa#PublishCard"},
+        {"target": "caixa#SearchWeb"}
+      ]
+    },
+
+    "caixa#CreateTask": {
+      "type": "operation",
+      "input":  {"target": "caixa#CreateTaskInput"},
+      "output": {"target": "caixa#ItemOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/create_task"},
+        "smithy.api#documentation": "Salva uma tarefa na lista do usuário. Use para qualquer 'tenho que fazer X', 'lembra de Y'."
+      }
+    },
+    "caixa#CreateTaskInput": {
+      "type": "structure",
+      "members": {
+        "user_id":  {"target": "smithy.api#String", "traits": {"smithy.api#documentation": "ID do usuário (sub Cognito). Obrigatório."}},
+        "title":    {"target": "smithy.api#String", "traits": {"smithy.api#required": {}, "smithy.api#documentation": "Título curto da tarefa."}},
+        "notes":    {"target": "smithy.api#String"},
+        "due_date": {"target": "smithy.api#String", "traits": {"smithy.api#documentation": "Formato YYYY-MM-DD, se houver."}}
+      }
+    },
+
+    "caixa#CreatePayment": {
+      "type": "operation",
+      "input":  {"target": "caixa#CreatePaymentInput"},
+      "output": {"target": "caixa#ItemOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/create_payment"},
+        "smithy.api#documentation": "Registra um pagamento/boleto a pagar. Use para qualquer foto/menção de boleto, fatura ou cobrança."
+      }
+    },
+    "caixa#CreatePaymentInput": {
+      "type": "structure",
+      "members": {
+        "user_id":     {"target": "smithy.api#String"},
+        "description": {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}},
+        "amount":      {"target": "smithy.api#Double",  "traits": {"smithy.api#required": {}, "smithy.api#documentation": "Valor em reais, sem R$."}},
+        "due_date":    {"target": "smithy.api#String"},
+        "payee":       {"target": "smithy.api#String"}
+      }
+    },
+
+    "caixa#CreateReminder": {
+      "type": "operation",
+      "input":  {"target": "caixa#CreateReminderInput"},
+      "output": {"target": "caixa#ItemOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/create_reminder"},
+        "smithy.api#documentation": "Cria lembrete com data/hora. Use para 'me lembra de X às Y'."
+      }
+    },
+    "caixa#CreateReminderInput": {
+      "type": "structure",
+      "members": {
+        "user_id": {"target": "smithy.api#String"},
+        "title":   {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}},
+        "at":      {"target": "smithy.api#String", "traits": {"smithy.api#required": {}, "smithy.api#documentation": "ISO-8601 data ou data+hora."}},
+        "notes":   {"target": "smithy.api#String"}
+      }
+    },
+
+    "caixa#SaveContact": {
+      "type": "operation",
+      "input":  {"target": "caixa#SaveContactInput"},
+      "output": {"target": "caixa#ItemOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/save_contact"},
+        "smithy.api#documentation": "Salva um contato novo. Use para cartão de visita, print de WhatsApp, menção de pessoa."
+      }
+    },
+    "caixa#SaveContactInput": {
+      "type": "structure",
+      "members": {
+        "user_id": {"target": "smithy.api#String"},
+        "name":    {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}},
+        "phone":   {"target": "smithy.api#String"},
+        "email":   {"target": "smithy.api#String"},
+        "notes":   {"target": "smithy.api#String"}
+      }
+    },
+
+    "caixa#SaveNote": {
+      "type": "operation",
+      "input":  {"target": "caixa#SaveNoteInput"},
+      "output": {"target": "caixa#ItemOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/save_note"},
+        "smithy.api#documentation": "Salva uma nota/ideia livre. Use quando NÃO cabe em outra categoria."
+      }
+    },
+    "caixa#SaveNoteInput": {
+      "type": "structure",
+      "members": {
+        "user_id": {"target": "smithy.api#String"},
+        "title":   {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}},
+        "body":    {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}}
+      }
+    },
+
+    "caixa#SendEmail": {
+      "type": "operation",
+      "input":  {"target": "caixa#SendEmailInput"},
+      "output": {"target": "caixa#GenericOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/send_email"},
+        "smithy.api#documentation": "Envia um email via SES. Use SÓ quando o usuário pedir explicitamente."
+      }
+    },
+    "caixa#SendEmailInput": {
+      "type": "structure",
+      "members": {
+        "user_id": {"target": "smithy.api#String"},
+        "to":      {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}},
+        "subject": {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}},
+        "body":    {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}}
+      }
+    },
+
+    "caixa#ListTasks": {
+      "type": "operation",
+      "input":  {"target": "caixa#ListInput"},
+      "output": {"target": "caixa#ItemListOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/list_tasks"},
+        "smithy.api#documentation": "Lista as tarefas abertas do usuário."
+      }
+    },
+    "caixa#ListPayments": {
+      "type": "operation",
+      "input":  {"target": "caixa#ListInput"},
+      "output": {"target": "caixa#ItemListOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/list_payments"},
+        "smithy.api#documentation": "Lista os pagamentos registrados."
+      }
+    },
+    "caixa#ListReminders": {
+      "type": "operation",
+      "input":  {"target": "caixa#ListInput"},
+      "output": {"target": "caixa#ItemListOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/list_reminders"},
+        "smithy.api#documentation": "Lista os lembretes agendados."
+      }
+    },
+    "caixa#ListInput": {
+      "type": "structure",
+      "members": {
+        "user_id": {"target": "smithy.api#String"},
+        "limit":   {"target": "smithy.api#Integer"}
+      }
+    },
+
+    "caixa#UpdateItem": {
+      "type": "operation",
+      "input":  {"target": "caixa#UpdateItemInput"},
+      "output": {"target": "caixa#GenericOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/update_item"},
+        "smithy.api#documentation": "Atualiza campos de um item já existente. Use o id retornado pelos list_*. NUNCA crie um novo para substituir."
+      }
+    },
+    "caixa#UpdateItemInput": {
+      "type": "structure",
+      "members": {
+        "user_id":  {"target": "smithy.api#String"},
+        "category": {"target": "smithy.api#String", "traits": {"smithy.api#required": {}, "smithy.api#documentation": "task | payment | reminder | contact | note | email"}},
+        "id":       {"target": "smithy.api#String", "traits": {"smithy.api#required": {}, "smithy.api#documentation": "O sk do item (retornado por list_*)."}},
+        "fields":   {"target": "caixa#FieldsDoc",    "traits": {"smithy.api#required": {}}}
+      }
+    },
+    "caixa#FieldsDoc": {
+      "type": "document",
+      "traits": {"smithy.api#documentation": "Dicionário de campos a atualizar. Só campos canônicos da categoria são aceitos."}
+    },
+
+    "caixa#DeleteItem": {
+      "type": "operation",
+      "input":  {"target": "caixa#DeleteItemInput"},
+      "output": {"target": "caixa#GenericOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/delete_item"},
+        "smithy.api#documentation": "Soft-delete de um item. Reversível via UndoDelete."
+      }
+    },
+    "caixa#DeleteItemInput": {
+      "type": "structure",
+      "members": {
+        "user_id":  {"target": "smithy.api#String"},
+        "category": {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}},
+        "id":       {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}}
+      }
+    },
+
+    "caixa#UndoDelete": {
+      "type": "operation",
+      "input":  {"target": "caixa#DeleteItemInput"},
+      "output": {"target": "caixa#GenericOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/undo_delete"},
+        "smithy.api#documentation": "Restaura um item soft-deleted."
+      }
+    },
+
+    "caixa#RenderChart": {
+      "type": "operation",
+      "input":  {"target": "caixa#RenderChartInput"},
+      "output": {"target": "caixa#GenericOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/render_chart"},
+        "smithy.api#documentation": "Renderiza gráfico inline no chat. chart_type: bar | line | pie | doughnut."
+      }
+    },
+    "caixa#RenderChartInput": {
+      "type": "structure",
+      "members": {
+        "user_id":    {"target": "smithy.api#String"},
+        "chart_type": {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}},
+        "title":      {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}},
+        "labels":     {"target": "caixa#StringList",  "traits": {"smithy.api#required": {}}},
+        "values":     {"target": "caixa#DoubleList",  "traits": {"smithy.api#required": {}}},
+        "unit":       {"target": "smithy.api#String"}
+      }
+    },
+
+    "caixa#PublishCard": {
+      "type": "operation",
+      "input":  {"target": "caixa#PublishCardInput"},
+      "output": {"target": "caixa#GenericOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/publish_card"},
+        "smithy.api#documentation": "Publica um card persistente no home do usuário. Templates: list|chart|metric|table|timeline|progress."
+      }
+    },
+    "caixa#PublishCardInput": {
+      "type": "structure",
+      "members": {
+        "user_id":      {"target": "smithy.api#String"},
+        "published_by": {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}},
+        "key":          {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}},
+        "template":     {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}},
+        "title":        {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}},
+        "spec":         {"target": "caixa#FieldsDoc",    "traits": {"smithy.api#required": {}}}
+      }
+    },
+
+    "caixa#SearchWeb": {
+      "type": "operation",
+      "input":  {"target": "caixa#SearchWebInput"},
+      "output": {"target": "caixa#GenericOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/search_web"},
+        "smithy.api#documentation": "Busca demo (stub). Plugue um MCP real (Exa/Brave/Google) pra resultados reais."
+      }
+    },
+    "caixa#SearchWebInput": {
+      "type": "structure",
+      "members": {
+        "user_id": {"target": "smithy.api#String"},
+        "query":   {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}}
+      }
+    },
+
+    "caixa#StringList": {"type": "list", "member": {"target": "smithy.api#String"}},
+    "caixa#DoubleList": {"type": "list", "member": {"target": "smithy.api#Double"}},
+
+    "caixa#ItemOutput":     {"type": "structure", "members": {"result": {"target": "caixa#FieldsDoc"}}},
+    "caixa#ItemListOutput": {"type": "structure", "members": {"items":  {"target": "caixa#FieldsDoc"}}},
+    "caixa#GenericOutput":  {"type": "structure", "members": {"result": {"target": "caixa#FieldsDoc"}}}
+  }
+}

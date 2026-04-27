@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>🏆 AWS AI Hackathon — Desafio Caixa Postal</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏆</text></svg>"/>
+<style>
+  :root{
+    --bg:#0b141a; --panel:#111b21; --hdr:#202c33; --stroke:#2a3942;
+    --text:#e9edef; --sub:#8696a0; --accent:#00a884; --accent2:#4aa8ff;
+    --orange:#ffb84a; --red:#fb7185; --green:#4ade80; --purple:#c084fc;
+    --mono: "SFMono-Regular", Menlo, Consolas, Liberation Mono, monospace;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,system-ui,Helvetica,Arial,sans-serif;line-height:1.55}
+  .wrap{max-width:1060px;margin:0 auto;padding:48px 24px 120px}
+  header{text-align:center;margin-bottom:48px;position:relative}
+  header h1{font-size:clamp(28px,4vw,44px);margin:0 0 12px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:800}
+  header .sub{color:var(--sub);font-size:15px;max-width:720px;margin:0 auto}
+  .badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:20px}
+  .badge{background:var(--panel);border:1px solid var(--stroke);padding:6px 14px;border-radius:999px;font-size:12px;color:var(--sub)}
+  .badge strong{color:var(--text)}
+
+  section{margin:48px 0;padding:28px;background:var(--panel);border:1px solid var(--stroke);border-radius:16px;position:relative}
+  section h2{margin:0 0 18px;font-size:24px;display:flex;align-items:center;gap:10px}
+  section .phase-num{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;color:transparent;background-clip:text;font-weight:900}
+  section h3{color:var(--accent);font-size:16px;margin:22px 0 10px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;font-size:12px}
+  section p{color:var(--text);margin:10px 0}
+  section ul{padding-left:22px}
+  section ul li{margin:8px 0}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+
+  code{font-family:var(--mono);font-size:13px;background:#0f2027;padding:2px 6px;border-radius:4px;color:#b3f0e0}
+  pre{font-family:var(--mono);font-size:12.5px;background:#07131a;border:1px solid var(--stroke);padding:14px 16px;border-radius:10px;overflow-x:auto;position:relative}
+  pre code{background:transparent;padding:0;color:inherit}
+  pre .cp{position:absolute;top:8px;right:8px;background:var(--stroke);color:var(--sub);border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit}
+  pre .cp:hover{background:var(--accent);color:var(--bg)}
+
+  .callout{border-left:3px solid var(--accent);padding:12px 16px;background:#0e1f25;margin:14px 0;border-radius:0 8px 8px 0;font-size:14px}
+  .callout.warn{border-color:var(--orange);background:#261f12}
+  .callout.note{border-color:var(--accent2);background:#112030}
+
+  .step{counter-increment:step;position:relative;padding-left:50px;margin:22px 0}
+  .step::before{content:counter(step);position:absolute;left:0;top:0;background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--bg);font-weight:800;width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:15px}
+  .steps{counter-reset:step}
+
+  .pill{display:inline-block;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;margin-right:6px}
+  .pill.bedrock{background:#1a2332;color:var(--accent2)}
+  .pill.strands{background:#1a2a24;color:var(--accent)}
+  .pill.agentcore{background:#251a2a;color:var(--purple)}
+  .pill.mcp{background:#2a2518;color:var(--orange)}
+
+  .links{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px}
+  .btn{background:var(--accent);color:var(--bg);padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;transition:filter .15s}
+  .btn:hover{filter:brightness(1.15)}
+  .btn.ghost{background:transparent;border:1px solid var(--stroke);color:var(--text)}
+
+  .rubric{width:100%;border-collapse:collapse;margin-top:12px}
+  .rubric td,.rubric th{padding:10px 12px;border-bottom:1px solid var(--stroke);text-align:left;font-size:14px}
+  .rubric th{color:var(--sub);text-transform:uppercase;font-size:11px;letter-spacing:.04em;font-weight:600}
+  .rubric .pct{color:var(--accent);font-weight:700;text-align:right;white-space:nowrap}
+
+  .card-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:16px}
+  .idea-card{background:#07131a;border:1px solid var(--stroke);border-radius:10px;padding:16px;transition:border-color .15s}
+  .idea-card:hover{border-color:var(--accent)}
+  .idea-card h4{margin:0 0 6px;color:var(--accent2);font-size:15px}
+  .idea-card p{color:var(--sub);font-size:13px;margin:0}
+
+  footer{text-align:center;color:var(--sub);font-size:13px;margin-top:60px;padding-top:30px;border-top:1px solid var(--stroke)}
+  footer a{color:var(--accent)}
+  .toc{background:#07131a;border:1px solid var(--stroke);border-radius:10px;padding:12px 16px;margin-bottom:30px;font-size:13px}
+  .toc a{color:var(--accent);text-decoration:none;margin-right:14px;display:inline-block;padding:2px 0}
+  .toc a:hover{text-decoration:underline}
+  .track-content{display:none}
+  .track-content.active{display:block}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>🏆 AWS AI Hackathon <br>Orquestrando o Futuro com IA Multimodal</h1>
+    <p class="sub">Construa um agente que <strong>vê, ouve e age</strong> no AWS AI Stack. Fork, customize, ganhe.</p>
+    <div class="badges">
+      <span class="badge"><strong>💰 até US$ 10k em créditos AWS</strong></span>
+      <span class="badge"><strong>🤝 Elevata + AWS</strong></span>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <strong>📑</strong>
+    <a href="#desafio">Desafio</a>
+    <a href="#setup-section">Setup</a>
+    <a href="#trilha">Trilhas</a>
+    <a href="#bonus">Bonus</a>
+    <a href="#entrega">Entrega</a>
+    <a href="/chat" target="_blank" style="color:var(--accent);margin-left:auto"><strong>💬 chat →</strong></a>
+  </nav>
+
+  <div class="callout note" style="margin-bottom:30px">
+    <strong>🎁 No dia do evento:</strong>
+    voce recebe acesso à sua conta lab AWS (SSO) + URL do repo Git no check-in.
+    A primeira coisa é deployar o stack na sua conta (um script faz tudo).
+    Pra tirar duvidas, abra o <a href="/chat" target="_blank" style="color:var(--accent)"><strong>💬 chat</strong></a>
+    numa aba nova — é onde todos conversam.
+  </div>
+
+  <section id="desafio">
+    <h2><span class="phase-num">01</span> O Desafio</h2>
+    <p>Você tem acesso a uma <strong>Caixa Postal Universal</strong> — um clone de WhatsApp onde um concierge-agente recebe texto, foto ou áudio, e age orquestrando agentes especialistas + tools plugáveis via Model Context Protocol (MCP).</p>
+    <p>Sua missão: <strong>forkar o starter, adicionar um agente próprio ou um MCP server real, e mostrar um caso de uso novo</strong>.</p>
+
+    <div class="callout">
+      Toda entrega precisa ter:<br>
+      ✅ Pelo menos 1 modalidade não-textual de entrada (foto, áudio ou vídeo)<br>
+      ✅ Orquestração de ≥2 tools OU 1 delegação a agente especialista<br>
+      ✅ Algum output visível: texto, card persistente no home, gráfico inline, arquivo baixável
+    </div>
+
+    <h3>Stack disponível</h3>
+    <p>
+      <span class="pill bedrock">Amazon Bedrock</span> Claude Sonnet 4.5, Haiku 4.5, Nova Pro/Lite/Canvas/Sonic<br>
+      <span class="pill strands">AWS Strands Agents</span> framework de agentes com tools nativos<br>
+      <span class="pill agentcore">AgentCore Gateway</span> MCP registry central com 15 tools definidas em Smithy 2.0<br>
+      <span class="pill agentcore">AgentCore Runtime</span> hospeda o concierge — HTTPS, identity e observability gerenciados<br>
+      <span class="pill mcp">MCP servers</span> plugue qualquer server compatível (filesystem, github, slack, postgres, ...)
+    </p>
+  </section>
+
+  <section id="setup-section">
+    <h2><span class="phase-num">00</span> Setup — provisione seu ambiente</h2>
+    <p>Divida em 3 fases: preparar, deployar, e aproveitar o tempo de espera.</p>
+
+    <h3 style="color:var(--accent);margin-top:20px">🅰 Antes de deployar (~5 min)</h3>
+    <div class="steps">
+      <div class="step">
+        <h3>Instale + conecte na sua conta AWS</h3>
+        <div class="grid2">
+          <div>
+            <strong>Instale (se ainda nao tem):</strong>
+            <ul>
+              <li><a href="https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html" target="_blank" style="color:var(--accent2)">AWS CLI v2</a></li>
+              <li><a href="https://www.python.org/downloads/" target="_blank" style="color:var(--accent2)">Python 3.10+</a></li>
+              <li><code>zip</code> (ja vem no macOS/Linux)</li>
+            </ul>
+            <p style="margin-top:8px;font-size:13px"><strong>Docker nao e necessario</strong> — o build do container roda na nuvem via CodeBuild.</p>
+          </div>
+          <div>
+            <strong>Conecte na sua conta lab:</strong>
+            <p style="font-size:13px;margin:4px 0">Use as credenciais SSO que voce recebeu no check-in. Configure com <code>aws configure</code> ou exporte as variaveis de ambiente.</p>
+            <pre><code># Confirme que esta logado na conta certa:
+aws sts get-caller-identity
+# Deve mostrar o Account ID da sua conta lab</code><button class="cp" onclick="copyNearest(this)">copy</button></pre>
+            <div class="callout warn" style="margin-top:8px;font-size:12px">
+              <strong>Se der erro aqui, nao siga em frente.</strong> Peca ajuda pra configurar o AWS CLI antes de rodar o script.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <h3>Ative os modelos no Bedrock</h3>
+        <p>Sua conta lab vem sem acesso aos modelos. Ative antes de rodar o script.</p>
+        <ol style="margin:8px 0">
+          <li>Abra o console: <a href="https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/model-access" target="_blank" style="color:var(--accent2)">Bedrock → Model access</a></li>
+          <li>Clique <strong>Modify model access</strong></li>
+          <li>Marque: <strong>Anthropic → Claude Sonnet 4.5</strong> e <strong>Claude Haiku 4.5</strong></li>
+          <li>Clique <strong>Next</strong> → <strong>Submit</strong></li>
+          <li>Aguarde o status mudar pra <strong>Access granted</strong> (~2 min)</li>
+        </ol>
+        <div class="callout warn">
+          <strong>Sem esse passo o agente nao funciona.</strong> O app deploya normalmente mas as conversas dao erro de permissao.
+        </div>
+      </div>
+    </div>
+
+    <h3 style="color:var(--orange);margin-top:28px">🅱 Dispare o deploy (~10 min de espera)</h3>
+    <div class="steps" style="counter-reset:step 2">
+      <div class="step">
+        <h3>Clone + rode o setup</h3>
+        <pre><code># Linux / macOS
+git clone https://github.com/elvt-amati/caixa-postal-hackathon.git caixa && cd caixa
+chmod +x scripts/setup.sh
+./scripts/setup.sh</code><button class="cp" onclick="copyNearest(this)">copy</button></pre>
+        <pre><code># Windows (PowerShell com WSL ou Git Bash)
+git clone https://github.com/elvt-amati/caixa-postal-hackathon.git caixa; cd caixa
+bash scripts/setup.sh</code><button class="cp" onclick="copyNearest(this)">copy</button></pre>
+        <div class="callout">
+          <strong>O script cria tudo automaticamente:</strong> DynamoDB, Cognito, Lambda, Gateway, Guardrail, ECS, CodeBuild.
+          Leva ~10 min. <strong>Deixe rodando e va pro proximo passo enquanto espera.</strong>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="color:var(--accent2);margin-top:28px">🅲 Enquanto o deploy roda — aproveite o tempo</h3>
+    <div class="callout note">
+      <strong>Nao fique parado esperando!</strong> Use esse tempo pra ja chegar pronto quando o app subir:
+    </div>
+    <div class="card-list" style="margin-top:12px">
+      <div class="idea-card">
+        <h4 style="color:var(--accent2)">1. Explore o Playground</h4>
+        <p>Abra <a href="https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/chat-playground" target="_blank" style="color:var(--accent2)">Bedrock → Chat Playground</a>. Selecione Claude Sonnet 4.5. Teste prompts, envie uma foto, veja como o modelo responde. Esse e o mesmo modelo que o seu agente vai usar.</p>
+      </div>
+      <div class="idea-card">
+        <h4 style="color:var(--accent2)">2. Escolha sua missao</h4>
+        <p>Leia as <a href="#missao" style="color:var(--accent)">missoes abaixo</a> e escolha a que quer construir.</p>
+      </div>
+      <div class="idea-card">
+        <h4 style="color:var(--accent2)">3. Escreva o system prompt</h4>
+        <p>No Playground, escreva e teste o system prompt do seu agente. Itere ate o Claude dar respostas que facam sentido. Copie o prompt que funcionou — voce vai colar no <code>agents_config.yaml</code> quando o deploy terminar.</p>
+      </div>
+      <div class="idea-card">
+        <h4 style="color:var(--accent2)">4. Leia o codigo do starter</h4>
+        <p>Enquanto espera, abra <code>backend/agents_config.yaml</code> e <code>backend/tools.py</code> no seu editor. Entenda como os agentes sao definidos e quais tools ja existem.</p>
+      </div>
+    </div>
+
+    <h3 style="color:var(--green);margin-top:28px">✅ Deploy terminou?</h3>
+    <div class="steps" style="counter-reset:step 3">
+      <div class="step">
+        <h3>Confirme que funciona</h3>
+        <p>Abra a URL do ALB que apareceu no terminal. Se carregar o WhatsApp-clone, esta pronto. Cole o system prompt que voce testou no Playground e comece a construir.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="trilha" style="text-align:center">
+    <h2>🛣️ Escolha sua trilha</h2>
+    <p style="color:var(--sub)">Clique numa trilha pra ver as instrucoes. Pode fazer uma ou as duas — quem completa as duas ganha ponto extra.</p>
+
+    <div style="display:flex;gap:12px;justify-content:center;margin:20px 0;flex-wrap:wrap">
+      <button onclick="showTrack('base')" id="btn-base" class="btn" style="min-width:180px">🏗️ Trilha Base</button>
+      <button onclick="showTrack('beautycore')" id="btn-beautycore" class="btn ghost" style="min-width:180px">🔥 Trilha BeautyCore</button>
+    </div>
+    <p id="track-hint" style="color:var(--sub);font-size:12px">mostrando: Trilha Base</p>
+  </section>
+
+  <!-- Track toggle JS is at the bottom of the page -->
+
+  <!-- ================================================================== -->
+  <!-- PHASES 02-04: Progressive build -->
+  <!-- ================================================================== -->
+
+  <div class="track-content active" data-track="base">
+
+  <section id="missao">
+    <h2><span class="phase-num">02</span> Escolha sua missao (5 min)</h2>
+    <p>Escolha uma <strong>missao</strong> — o caso de uso que voce vai construir. Escolha uma das cartas abaixo ou invente a sua.</p>
+
+    <div class="card-list">
+      <div class="idea-card">
+        <h4>🔧 Mecanico de bolso</h4>
+        <p>Foto do painel + audio do barulho → diagnostico + ticket</p>
+        <p style="margin-top:6px"><span class="pill bedrock">foto</span><span class="pill mcp">audio</span></p>
+      </div>
+      <div class="idea-card">
+        <h4>🍽 Chef da geladeira</h4>
+        <p>Foto da geladeira → 3 receitas + grafico nutricional</p>
+        <p style="margin-top:6px"><span class="pill bedrock">foto</span></p>
+      </div>
+      <div class="idea-card">
+        <h4>🧾 Contador MEI</h4>
+        <p>Foto de nota fiscal → lanca pagamento + grafico mensal</p>
+        <p style="margin-top:6px"><span class="pill bedrock">foto</span></p>
+      </div>
+      <div class="idea-card">
+        <h4>📊 Analista de reuniao</h4>
+        <p>Audio de 30s → transcricao + lista de acoes</p>
+        <p style="margin-top:6px"><span class="pill mcp">audio</span></p>
+      </div>
+      <div class="idea-card">
+        <h4>🎓 Tutor de licao</h4>
+        <p>Foto do caderno → resolve + explica passo a passo</p>
+        <p style="margin-top:6px"><span class="pill bedrock">foto</span></p>
+      </div>
+      <div class="idea-card">
+        <h4>🚀 Livre</h4>
+        <p>Invente o seu — precisa ter <strong>foto OU audio</strong> como entrada</p>
+        <p style="margin-top:6px"><span class="pill bedrock">foto</span><span class="pill mcp">audio</span></p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Escolheu?</strong> Anota em 1 frase o que voce vai construir.
+    </div>
+  </section>
+
+  <section id="playground">
+    <h2><span class="phase-num">03</span> Teste seu prompt no Playground (10 min)</h2>
+    <p>Antes de codar, valide sua ideia direto no console. Voce vai sair daqui com um <strong>system prompt testado</strong>.</p>
+
+    <div class="steps">
+      <div class="step">
+        <h3>Abra o Playground</h3>
+        <p>Console → <a href="https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/chat-playground" target="_blank" style="color:var(--accent2)">Bedrock → Playgrounds → Chat</a>. Selecione <strong>Claude Sonnet 4.5</strong>.</p>
+      </div>
+
+      <div class="step">
+        <h3>Escreva um system prompt para SUA missao</h3>
+        <p>Nao use um prompt generico — escreva instrucoes especificas para o caso de uso que voce escolheu. Exemplo para "Mecanico de bolso":</p>
+        <pre><code>Voce e um mecanico virtual. O usuario vai enviar uma foto
+do painel do carro e/ou um audio descrevendo o barulho.
+
+1. Identifique as luzes acesas no painel e o que significam
+2. Se houver audio, analise a descricao do barulho
+3. De um diagnostico provavel
+4. Sugira urgencia: pode dirigir / leve ao mecanico / pare agora
+5. Gere um ticket resumo com: problema, diagnostico, urgencia</code><button class="cp" onclick="copyNearest(this)">copy</button></pre>
+      </div>
+
+      <div class="step">
+        <h3>Teste com entrada multimodal</h3>
+        <p><strong>Se sua missao usa foto:</strong> clique no icone de imagem/anexo no Playground, envie uma foto de teste e peca ao Claude para analisar conforme seu system prompt.</p>
+        <p><strong>Se sua missao usa audio:</strong> como o Playground nao recebe audio direto, digite uma transcricao de exemplo (ex: <code>"ta fazendo um barulho tipo clac-clac quando viro o volante pra esquerda"</code>) e peca ao Claude para processar.</p>
+      </div>
+
+      <div class="step">
+        <h3>Itere ate funcionar</h3>
+        <p>Ajuste o system prompt ate o Claude dar respostas que facam sentido pro seu caso de uso. Teste pelo menos 2 entradas diferentes.</p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Checkpoint:</strong> copie o prompt que funcionou. Voce vai colar ele no <code>agents_config.yaml</code> na fase seguinte.
+    </div>
+  </section>
+
+  <section id="montar">
+    <h2><span class="phase-num">04</span> Monte seu agente + multimodal (20 min)</h2>
+    <p>Agora voce transforma o prompt testado num agente real rodando na Caixa Postal.</p>
+
+    <div class="steps">
+      <div class="step">
+        <h3>4a. Clone, instale, suba</h3>
+        <p>Tres comandos — a URL do repo é entregue no check-in:</p>
+        <pre><code>git clone https://github.com/elvt-amati/caixa-postal-hackathon.git caixa && cd caixa
+pip install -r requirements.txt
+cd backend && uvicorn main:app --reload --port 8080</code><button class="cp" onclick="copyNearest(this)">copy</button></pre>
+        <p>Abra <code>http://localhost:8080</code>. Se carregou, proximo passo.</p>
+        <div class="callout warn">
+          <strong>Python 3.10+ obrigatorio.</strong> Strands Agents e ag_ui_strands nao carregam no 3.9.
+          Confere com <code>python3 --version</code>. Pega 3.12 via <code>brew install python@3.12</code>.
+        </div>
+      </div>
+
+      <div class="step">
+        <h3>4b. Cole seu prompt testado no agents_config.yaml</h3>
+        <p>Abra <code>backend/agents_config.yaml</code>, cole no final o agente com o <strong>prompt que voce testou no Playground</strong>:</p>
+        <pre><code>meu_agente:
+  display_name: "Meu Agente"
+  emoji: "⚡"
+  description: "Faz X, Y e Z."
+  system_prompt: |
+    &lt;COLE AQUI O PROMPT QUE VOCE TESTOU NO PLAYGROUND&gt;
+    Sempre inclua user_id em toda chamada de tool.
+  tools:
+    - search_web       # reaproveita tools existentes
+    - render_chart     # gera grafico inline no chat
+    - publish_card     # fixa card persistente no home</code><button class="cp" onclick="copyNearest(this)">copy</button></pre>
+        <p>Salve. O <code>uvicorn --reload</code> detecta em 2-3s. F5 no browser → seu agente aparece na sidebar.</p>
+      </div>
+
+      <div class="step">
+        <h3>4c. Teste com texto</h3>
+        <p>Mande uma mensagem de texto para o Concierge que combine com seu system prompt. Confirme que ele delega pro seu agente e que a resposta faz sentido.</p>
+      </div>
+
+      <div class="step">
+        <h3>4d. Teste com foto</h3>
+        <p>Arraste ou cole uma imagem no chat. Seu agente deve analisar a imagem conforme o system prompt que voce definiu. Exemplo: foto de nota fiscal → agente extrai dados e lanca pagamento.</p>
+      </div>
+
+      <div class="step">
+        <h3>4e. Teste com audio</h3>
+        <p>Clique no icone 🎙️ no campo de mensagem, grave um pedido de voz. O agente transcreve via <strong>Amazon Transcribe</strong> e responde de acordo com sua missao.</p>
+        <div class="callout warn">
+          <strong>Audio requer HTTPS.</strong> Seu ALB roda em HTTP — o microfone so funciona no Chrome (localhost) ou se voce adicionar CloudFront depois (<code>scripts/add-cloudfront.sh</code>). No Safari, use texto ou foto ate ter HTTPS.
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Checkpoint:</strong> seu agente respondeu com texto + processou foto ou audio? Requisito de multimodal cumprido.
+      A partir daqui voce personaliza, adiciona tools, e evolui o agente.
+    </div>
+
+      <div class="step">
+        <h3>4f. Publique as mudancas na sua stack AWS</h3>
+        <p>Testou local e esta funcionando? Suba pro ECS:</p>
+        <pre><code>bash scripts/deploy.sh</code><button class="cp" onclick="copyNearest(this)">copy</button></pre>
+        <p>O script empacota o codigo, builda o container via CodeBuild (~3 min), e atualiza o ECS. Leva ~5 min no total.</p>
+        <div class="callout note">
+          <strong>Primeira vez?</strong> Use <code>bash scripts/setup.sh</code> pra criar toda a infra. Depois, <code>deploy.sh</code> e suficiente pra atualizar codigo.
+        </div>
+      </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- PHASES 05+: Architecture + Code. Devs accelerate here.             -->
+  <!-- ================================================================== -->
+
+  <section id="stack">
+    <h2><span class="phase-num">05</span> Arquitetura do Starter</h2>
+    <pre><code>┌──────────────────────────────────────────────────────────┐
+│  📱 Browser (WhatsApp clone + Home com cards)            │
+│     https://d168tci1ssss8v.cloudfront.net                │
+└─────────────────┬────────────────────────────────────────┘
+                  │  HTTPS
+                  ▼
+┌──────────────────────────────────────────────────────────┐
+│  🌐 CloudFront + ALB  →  ECS Fargate (proxy AG-UI + /api)│
+│  encaminha /agent p/ Runtime; serve /api/* local         │
+└─────────────────┬────────────────────────────────────────┘
+                  │  InvokeAgentRuntime
+                  ▼
+┌──────────────────────────────────────────────────────────┐
+│  🤖 AgentCore Runtime — Concierge (Strands)              │
+│  BedrockAgentCoreApp · AG-UI · cross-region Claude 4.5   │
+└────┬──────────────────────────────────────┬──────────────┘
+     │                                      │
+     │ Bedrock Converse                     │ MCP / tools
+     │ (Guardrail 🛡️ PII+jailbreak)          │
+     ▼                                      ▼
+ ┌────────────────┐              ┌────────────────────────┐
+ │ Bedrock Claude │              │ AgentCore Gateway 🔐   │ ←── tools/list, tools/call
+ │ Sonnet 4.5     │              │ (Cognito JWT + Smithy) │
+ └────────────────┘              └───────────┬────────────┘
+                                             │
+                                             ▼
+                                   ┌─────────────────┐
+                                   │ Lambda + Dynamo │
+                                   │ (15 tools)      │
+                                   └─────────────────┘</code></pre>
+    <p class="sub" style="font-size:13px;margin-top:8px">
+      Todo o agente (Concierge) roda no <span class="pill agentcore">AgentCore Runtime</span>. O ECS Fargate só existe como
+      proxy SSE + servidor das rotas <code>/api/*</code> (threads, transcribe, ops). As 15 tools vivem no
+      <span class="pill agentcore">AgentCore Gateway</span> com contrato em Smithy 2.0 — um único arquivo é a fonte da verdade.
+    </p>
+  </section>
+
+
+  <section id="starter">
+    <h2><span class="phase-num">06</span> O que já vem pronto</h2>
+    <div class="grid2">
+      <div>
+        <h3>Agentes</h3>
+        <ul>
+          <li><strong>🤖 concierge</strong> — orquestrador. Delega + age direto.</li>
+          <li><strong>📅 agenda</strong> — briefings, conflitos, lembretes.</li>
+          <li><strong>💰 financeiro</strong> — pagamentos, totais, gráficos.</li>
+          <li><strong>🔍 pesquisa</strong> — análise profunda + MCP filesystem.</li>
+          <li><strong>🎯 pitch</strong> — gera deck SVG em 6 slides.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Templates de card</h3>
+        <ul>
+          <li><code>list</code> — lista simples (preview)</li>
+          <li><code>kanban</code> — 3 colunas com drag-drop persistente</li>
+          <li><code>calendar</code> — mês navegável + chart opcional</li>
+          <li><code>chart</code> — Chart.js (bar/line/pie/doughnut)</li>
+          <li><code>metric</code> — número grande + label</li>
+          <li><code>table</code>, <code>timeline</code>, <code>progress</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Tools no Gateway</h3>
+    <p style="font-family:var(--mono);font-size:12.5px;color:var(--sub)">
+      create_task · create_payment · create_reminder · save_contact · save_note · send_email<br>
+      list_tasks · list_payments · list_reminders · update_item · delete_item · undo_delete<br>
+      render_chart · publish_card · search_web
+    </p>
+    <p>Todas user-scoped (<code>pk=CAT#&lt;user_id&gt;#&lt;category&gt;</code>) — cada time tem seu próprio silo.</p>
+  </section>
+
+  <section id="customize">
+    <h2><span class="phase-num">07</span> 5 caminhos de customização</h2>
+    <div class="card-list">
+      <div class="idea-card">
+        <h4>🤖 Adicionar agente</h4>
+        <p>Edita <code>backend/agents_config.yaml</code>. ~20 linhas YAML + reinicia. Concierge passa a delegar.</p>
+      </div>
+      <div class="idea-card">
+        <h4>📡 Plugar MCP real</h4>
+        <p>Em <code>agents_config.yaml</code> do seu agente, adiciona <code>mcp_servers:</code> apontando pra github/slack/postgres oficial. Tools aparecem automágicas.</p>
+      </div>
+      <div class="idea-card">
+        <h4>🛠️ Nova tool Python</h4>
+        <p>Decora uma função com <code>@tool</code> em <code>backend/tools.py</code>, registra em <code>TOOLS_BY_NAME</code>. Ou escreve uma Lambda e registra no Gateway.</p>
+      </div>
+      <div class="idea-card">
+        <h4>🎨 Novo template de card</h4>
+        <p>Função <code>renderTpl_xxxx(container, spec, items)</code> em <code>frontend/app.js</code>. ~30 linhas.</p>
+      </div>
+      <div class="idea-card">
+        <h4>📬 Card custom via AG-UI</h4>
+        <p>Agente chama <code>publish_card</code> com sua própria <code>spec</code>. Frontend persiste em localStorage e mantém fixo no home.</p>
+      </div>
+    </div>
+
+    <h3>Exemplo — agente de viagens em 20 linhas</h3>
+    <pre><code>viagens:
+  display_name: "Viagens"
+  emoji: "✈️"
+  description: "Planeja roteiros, busca voos/hotéis, cards comparativos"
+  system_prompt: |
+    Você é o agente Viagens. Dado destino + datas + orçamento,
+    retorne 3-5 bullets com voo/hotel/atividades. Use publish_card
+    quando o usuário pedir comparação visível.
+  tools:
+    - search_web
+    - publish_card
+    - render_chart
+  mcp_servers:
+    - command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-brave-search"]
+      env: {BRAVE_API_KEY: "${BRAVE_API_KEY}"}</code><button class="cp" onclick="copyNearest(this)">copy</button></pre>
+  </section>
+
+  <section id="gateway">
+    <h2><span class="phase-num">08</span> Usando o AgentCore Gateway (avançado)</h2>
+    <div class="callout warn">
+      <strong>⚠️ Opcional — avançado.</strong> A maioria dos times não precisa mexer nisso.
+      O backend local (<code>uvicorn</code>) já fala com o Gateway pra você. Use esta seção só se
+      quiser construir um agente fora do repo, num SDK diferente (TypeScript, Rust, etc).
+    </div>
+    <p>O <strong>Gateway</strong> é o MCP registry central: você chama um endpoint, ele lista tools, você invoca.</p>
+
+    <h3>Endpoints</h3>
+    <pre><code># Gateway (MCP)
+https://caixa-gateway-kybixf3xuf.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp
+
+# Cognito token (client_credentials)
+https://caixa-446394402238.auth.us-east-1.amazoncognito.com/oauth2/token
+
+# Scopes
+caixa-api/read caixa-api/write</code><button class="cp" onclick="copyNearest(this)">copy</button></pre>
+
+    <div class="callout warn">
+      <strong>Passa o <code>user_id</code> em TODA chamada de tool.</strong>
+      Items são scoped por usuário — sem <code>user_id</code>, tudo vai pra bucket
+      <code>anon</code> compartilhado (juiz não vai gostar).
+    </div>
+    <div class="callout note">
+      <strong>🔐 Sobre o token:</strong> o client secret do Cognito fica com os
+      mentores — peça a um mentor pra rodar o snippet curl acima. O caminho
+      normal é passar pelo backend Python do starter, que já tem acesso.
+    </div>
+
+    <h3 style="margin-top:24px">Do Python direto (Strands)</h3>
+    <pre><code>from strands import Agent
+from strands.models.bedrock import BedrockModel
+from strands.tools.mcp import MCPClient
+from mcp.client.streamable_http import streamablehttp_client
+
+def transport():
+    token = get_token()  # client_credentials flow
+    return streamablehttp_client(GATEWAY_URL,
+        headers={"Authorization": f"Bearer {token}"})
+
+mcp = MCPClient(transport_callable=transport)
+mcp.start()
+tools = list(mcp.list_tools_sync())
+
+agent = Agent(
+    model=BedrockModel(model_id="us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+    tools=tools,  # ← 15 tools, discoverable!
+)
+print(agent("Cria uma task: comprar leite"))</code><button class="cp" onclick="copyNearest(this)">copy</button></pre>
+  </section>
+
+  <section id="entrega">
+    <h2><span class="phase-num">09</span> Entrega</h2>
+    <div class="grid2">
+      <div>
+        <h3>Submeta pelo chat</h3>
+        <ul>
+          <li>✅ URL do seu repo (GitHub/GitLab)</li>
+          <li>✅ Selecione a trilha que completou</li>
+          <li>✅ Clique "Pronto!" no painel de submissao</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Se houver apresentacao</h3>
+        <ul>
+          <li>Demo ao vivo no laptop ou video</li>
+          <li>Mostre o que seu agente faz de diferente</li>
+          <li>~4 minutos por pessoa</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="ideias">
+    <h2><span class="phase-num">10</span> Ideias pra destravar</h2>
+    <div class="card-list">
+      <div class="idea-card">
+        <h4>🔧 Mecânico de bolso</h4>
+        <p>Foto do painel do carro + áudio do barulho → agente diagnostica, abre ticket, cita manual.</p>
+      </div>
+      <div class="idea-card">
+        <h4>🍽 Chef da geladeira</h4>
+        <p>Foto da geladeira → 3 receitas, gera imagem do prato, narra modo de preparo.</p>
+      </div>
+      <div class="idea-card">
+        <h4>📊 Analista de reunião</h4>
+        <p>Áudio de 30min → transcript → cards de ações + pitch deck do resumo.</p>
+      </div>
+      <div class="idea-card">
+        <h4>🧾 Contador MEI</h4>
+        <p>Foto de nota fiscal → lança no DynamoDB → gera gráfico mensal → envia relatório por email.</p>
+      </div>
+      <div class="idea-card">
+        <h4>🎓 Tutor de lição de casa</h4>
+        <p>Foto da página do caderno + áudio "não entendi" → agente resolve + re-explica em voz.</p>
+      </div>
+      <div class="idea-card">
+        <h4>⚖️ Jurídico MEI</h4>
+        <p>Foto de multa/notificação → RAG sobre KB de jurisprudência → plano de resposta.</p>
+      </div>
+    </div>
+
+    <div class="callout note" style="margin-top:24px">
+      Não copie essas ideias 1:1 — use elas como trampolim. <strong>O seu twist é o que ganha o prêmio.</strong>
+    </div>
+  </section>
+
+  <section>
+    <h2>📞 Mentores e suporte</h2>
+    <div class="grid2">
+      <div>
+        <h3>Time Elevata</h3>
+        <ul>
+          <li><strong>Savio Batista</strong> — anfitriao + main specialist</li>
+          <li><strong>Amati Silva</strong> — Strands / MCP / AgentCore</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Canais</h3>
+        <ul>
+          <li>💻 Online: <a href="/chat" target="_blank" style="color:var(--accent)">/chat</a> (mesma plataforma, sem app externo)</li>
+          <li>❓ Duvida tecnica: chame qualquer mentor, nao fique travado</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  </div><!-- end track-content base -->
+
+  <div class="track-content" data-track="beautycore">
+
+  <section id="hardpath" style="background:linear-gradient(135deg,#1a0a2e,#0a1a2e);border-color:#4a2a6a">
+    <h2 style="color:var(--purple)">🔥 Trilha avançada: BeautyCore</h2>
+    <p style="color:var(--sub)">Terminou rápido? Quer um desafio de verdade? Essa trilha não tem tutorial.</p>
+
+    <p>A <strong>BeautyCore</strong> é uma empresa fictícia de cosméticos brasileira com uma API REST protegida por JWT. Catálogo de produtos, pedidos, clientes e controle de estoque — tudo autenticado via Cognito com 3 níveis de permissão.</p>
+
+    <div class="grid2" style="margin:20px 0">
+      <div>
+        <h3 style="color:var(--purple)">O que existe</h3>
+        <ul>
+          <li>API com 8 endpoints protegidos por JWT</li>
+          <li>Cognito User Pool com 3 usuários (admin, analista, estoque)</li>
+          <li>~50 produtos, 20 clientes, 30 pedidos no DynamoDB</li>
+          <li>Permissões por grupo (quem pode ler, quem pode escrever)</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color:var(--purple)">O que VOCE precisa fazer</h3>
+        <ul>
+          <li>Conecte-se a BeautyCore pelo painel na sidebar do app (escolha um usuario e clique Conectar)</li>
+          <li>Copie o JWT gerado e a API URL</li>
+          <li>Crie um agente ou MCP server que usa o JWT pra consultar a API BeautyCore</li>
+          <li>Passe o Bearer token em toda requisicao</li>
+          <li>Faca o agente responder: <em>"quais batons veganos estao em estoque?"</em></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <strong>O conector ja existe na sidebar do app.</strong> Voce recebe o JWT e a API URL automaticamente. O desafio e criar um agente que USE essa API pra responder perguntas sobre o catalogo.
+    </div>
+
+    <table class="rubric" style="margin-top:16px">
+      <thead><tr><th>Usuário</th><th>Senha</th><th>Grupo</th></tr></thead>
+      <tbody>
+        <tr><td><code>admin@beautycore.com.br</code></td><td><code>BeautyAdmin2026!</code></td><td>admin (CRUD total)</td></tr>
+        <tr><td><code>analista@beautycore.com.br</code></td><td><code>BeautyRead2026!</code></td><td>analista (leitura)</td></tr>
+        <tr><td><code>estoque@beautycore.com.br</code></td><td><code>BeautyStock2026!</code></td><td>estoque (inventário)</td></tr>
+      </tbody>
+    </table>
+
+    <p style="margin-top:16px">API URL e Cognito Client ID sao entregues no check-in do evento.</p>
+  </section>
+
+  </div><!-- end track-content beautycore -->
+
+  <section id="bonus" style="background:linear-gradient(135deg,#2a0a0a,#1a0a1e);border-color:#6a2a2a">
+    <h2 style="color:var(--red)">🛡️ Bonus: Quebre o agente</h2>
+    <p style="color:var(--sub)">O concierge da <strong>demo da Elevata</strong> tem uma <strong>palavra secreta</strong> que ele foi instruido a nunca revelar. Sua missao: extrair essa palavra.</p>
+
+    <div class="grid2" style="margin:20px 0">
+      <div>
+        <h3 style="color:var(--red)">Camadas de defesa</h3>
+        <ul>
+          <li><strong>Bedrock Guardrail</strong> — filtro de prompt-attack (HIGH), negacao de topicos, filtro de palavras proibidas, PII blocking</li>
+          <li><strong>System prompt hardening</strong> — instrucoes explicitas anti-leak, anti-personificacao, anti-injection embutida</li>
+          <li><strong>Output redaction</strong> — guardrail filtra a SAIDA do modelo tambem</li>
+          <li><strong>Sessao isolada</strong> — cada conversa comeca do zero, sem herdar contexto de outros participantes</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color:var(--red)">Regras</h3>
+        <ul>
+          <li>Use <strong>apenas</strong> a demo da Elevata: <a href="/" target="_blank" style="color:var(--accent)">abrir app</a> → chat com o Concierge</li>
+          <li>Vale qualquer tecnica: prompt injection, social engineering, traducao, encoding, role-play, imagem com texto</li>
+          <li><strong>NAO</strong> vale: ler o codigo-fonte, inspecionar requests no DevTools, acessar backend/logs</li>
+          <li>Extraiu a palavra? Valide pelo <a href="/chat" target="_blank" style="color:var(--accent)">chat do evento</a> (painel de submissao) + tire screenshot da conversa</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout" style="border-color:var(--red)">
+      <strong>Pontuacao:</strong> quem extrair a palavra recebe reconhecimento do time Elevata + bonus no resultado final.
+      Valide sua resposta pelo <a href="/chat" target="_blank" style="color:var(--accent)">chat do evento</a> (painel de submissao na sidebar).
+    </div>
+  </section>
+
+  <footer>
+    <p>🏆 AWS AI Hackathon — Orquestrando o Futuro com IA Multimodal<br>
+    <a href="/">demo ao vivo</a> · <a href="/variacoes">🎲 variações</a> · <a href="/keynote">🎤 keynote</a> · <a href="/cheatsheet">📋 cheatsheet imprimível</a><br>
+    Construído pela Elevata em parceria com AWS · 2026</p>
+  </footer>
+</div>
+
+<script>
+function copyNearest(btn){
+  const pre = btn.closest('pre');
+  const code = pre.querySelector('code');
+  navigator.clipboard.writeText(code.innerText.trim()).then(()=>{
+    const old = btn.textContent;
+    btn.textContent = '✓ copied';
+    setTimeout(()=>{ btn.textContent = old; }, 1200);
+  });
+}
+function showTrack(t) {
+  document.querySelectorAll('.track-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('[data-track="'+t+'"]').forEach(el => el.classList.add('active'));
+  document.getElementById('btn-base').className = t==='base' ? 'btn' : 'btn ghost';
+  document.getElementById('btn-beautycore').className = t==='beautycore' ? 'btn' : 'btn ghost';
+  document.getElementById('track-hint').textContent = 'mostrando: ' + (t==='base' ? 'Trilha Base' : 'Trilha BeautyCore');
+}
+showTrack('base');
+</script>
+</body>
+</html>

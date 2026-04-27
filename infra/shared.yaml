@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Caixa Postal shared infra — DynamoDB, S3, ECR, SES, CodeBuild
+
+Parameters:
+  ProjectTag: {Type: String, Default: hackathon-2026}
+  SesIdentityEmail:
+    Type: String
+    Default: ""
+    Description: Optional email to verify in SES (leave empty to skip)
+
+Conditions:
+  HasSesEmail: !Not [!Equals [!Ref SesIdentityEmail, ""]]
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "caixa-${AWS::AccountId}"
+      LifecycleConfiguration:
+        Rules:
+          - {Id: expire-audio, Status: Enabled, Prefix: audio/, ExpirationInDays: 3}
+          - {Id: expire-transcripts, Status: Enabled, Prefix: transcripts/, ExpirationInDays: 3}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - {Key: Project, Value: !Ref ProjectTag}
+        - {Key: Component, Value: caixa}
+
+  Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: caixa-items
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - {AttributeName: pk, AttributeType: S}
+        - {AttributeName: sk, AttributeType: S}
+      KeySchema:
+        - {AttributeName: pk, KeyType: HASH}
+        - {AttributeName: sk, KeyType: RANGE}
+      # Caps storage cost: items with `ttl` (epoch seconds) auto-purge after the date.
+      # Write-side should set ttl = int(time.time()) + 90*86400 for messages/transient items.
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      # Backup safety: 35-day rolling window of deleted/mutated items.
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - {Key: Project, Value: !Ref ProjectTag}
+        - {Key: Component, Value: caixa}
+        - {Key: CostCenter, Value: hackathon-2026}
+
+  EcrRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: caixa
+      ImageScanningConfiguration: {ScanOnPush: true}
+      Tags:
+        - {Key: Project, Value: !Ref ProjectTag}
+        - {Key: Component, Value: caixa}
+
+  SesIdentity:
+    Type: AWS::SES::EmailIdentity
+    Condition: HasSesEmail
+    Properties:
+      EmailIdentity: !Ref SesIdentityEmail
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: caixa-codebuild
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: codebuild.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: caixa-codebuild
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents]
+                Resource: "*"
+              - Effect: Allow
+                Action: [ecr:GetAuthorizationToken]
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:PutImage
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/caixa"
+              - Effect: Allow
+                Action: [s3:GetObject]
+                Resource: !Sub "arn:aws:s3:::caixa-${AWS::AccountId}/*"
+      Tags:
+        - {Key: Project, Value: !Ref ProjectTag}
+
+  Builder:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: caixa-build
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts: {Type: NO_ARTIFACTS}
+      Source:
+        Type: S3
+        Location: !Sub "caixa-${AWS::AccountId}/caixa-src.zip"
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux-x86_64-standard:5.0
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - {Name: AWS_DEFAULT_REGION, Value: !Ref "AWS::Region"}
+          - {Name: ECR_REPO, Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/caixa"}
+      TimeoutInMinutes: 15
+      Tags:
+        - {Key: Project, Value: !Ref ProjectTag}
+
+Outputs:
+  BucketName: {Value: !Ref Bucket, Export: {Name: CaixaBucket}}
+  TableName: {Value: !Ref Table, Export: {Name: CaixaTable}}
+  EcrRepoUri: {Value: !GetAtt EcrRepo.RepositoryUri, Export: {Name: CaixaEcrUri}}

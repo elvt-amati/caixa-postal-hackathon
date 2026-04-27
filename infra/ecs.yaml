@@ -1,0 +1,284 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Caixa Postal on ECS Fargate + ALB (WebSocket/SSE capable)
+
+Parameters:
+  ImageUri: {Type: String, Default: 446394402238.dkr.ecr.us-east-1.amazonaws.com/caixa:latest}
+  BucketName: {Type: String, Default: caixa-446394402238}
+  TableName:  {Type: String, Default: caixa-items}
+  SesFrom:    {Type: String, Default: ""}
+  ProjectTag: {Type: String, Default: hackathon-2026}
+  VpcId:      {Type: AWS::EC2::VPC::Id}
+  SubnetIds:  {Type: List<AWS::EC2::Subnet::Id>}
+  GuardrailId:      {Type: String, Default: ""}
+  GuardrailVersion: {Type: String, Default: "DRAFT"}
+  AgentCoreRuntimeArn: {Type: String, Default: ""}
+  # Canonical host for event-material pages (/desafio, /keynote, etc).
+  # When set, the backend 302-redirects any non-matching Host to this
+  # CloudFront domain so participant forks always read our authoritative
+  # content. Leave blank to disable the redirect (useful when setting up
+  # a fresh demo stack before its CloudFront is warm).
+  CanonicalHost:    {Type: String, Default: "d168tci1ssss8v.cloudfront.net"}
+  # Central Cognito auth — when set, participants log in with email+password
+  # and get their own DDB partition via Cognito sub. Leave AuthEnabled=false
+  # to fall back to guest cookies (anonymous pseudonymous sessions).
+  AuthEnabled:      {Type: String, Default: "true", AllowedValues: ["true", "false"]}
+  AuthOidcIssuer:   {Type: String, Default: ""}
+  AuthOidcClientId: {Type: String, Default: ""}
+  AuthPublicUrl:    {Type: String, Default: ""}
+
+Conditions:
+  HasGuardrail: !Not [!Equals [!Ref GuardrailId, ""]]
+  HasAuth: !Equals [!Ref AuthEnabled, "true"]
+
+Resources:
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: {LogGroupName: /ecs/caixa, RetentionInDays: 7, Tags: [{Key: Project, Value: !Ref ProjectTag}]}
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties: {ClusterName: caixa, Tags: [{Key: Project, Value: !Ref ProjectTag}]}
+
+  TaskExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: caixa-ecs-exec
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - {Effect: Allow, Principal: {Service: ecs-tasks.amazonaws.com}, Action: sts:AssumeRole}
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Tags: [{Key: Project, Value: !Ref ProjectTag}]
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: caixa-ecs-task
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - {Effect: Allow, Principal: {Service: ecs-tasks.amazonaws.com}, Action: sts:AssumeRole}
+      Policies:
+        - PolicyName: caixa-runtime
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                  - bedrock:Converse
+                  - bedrock:ConverseStream
+                # Cross-region inference profiles (us.anthropic.*) route to multiple regions
+                # (us-east-1, us-east-2, us-west-2). We must allow the foundation-model ARNs
+                # in ANY region for routing to work, plus the inference profile itself.
+                Resource:
+                  - "arn:aws:bedrock:*::foundation-model/anthropic.claude-*"
+                  - "arn:aws:bedrock:*::foundation-model/amazon.nova-*"
+                  - !Sub "arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/us.anthropic.claude-*"
+                  - !Sub "arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/us.amazon.nova-*"
+              - Effect: Allow
+                Action:
+                  - aws-marketplace:ViewSubscriptions
+                  - aws-marketplace:Subscribe
+                Resource: "*"
+              - !If
+                - HasGuardrail
+                - Effect: Allow
+                  Action: [bedrock:ApplyGuardrail]
+                  Resource: !Ref GuardrailId
+                - !Ref AWS::NoValue
+              # ECS now proxies /agent to the Concierge hosted on AgentCore
+              # Runtime. The boto3 call used is InvokeAgentRuntime.
+              - Effect: Allow
+                Action: [bedrock-agentcore:InvokeAgentRuntime]
+                Resource: !Sub "arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/*"
+              - Effect: Allow
+                Action:
+                  - transcribe:StartTranscriptionJob
+                  - transcribe:GetTranscriptionJob
+                  - transcribe:ListTranscriptionJobs
+                Resource: "*"
+              - Effect: Allow
+                Action: [s3:PutObject, s3:GetObject, s3:DeleteObject, s3:ListBucket]
+                Resource:
+                  - !Sub "arn:aws:s3:::${BucketName}"
+                  - !Sub "arn:aws:s3:::${BucketName}/*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:DeleteItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TableName}"
+              - Effect: Allow
+                Action: [cognito-idp:AdminConfirmSignUp]
+                Resource: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
+              - Effect: Allow
+                Action: [ses:SendEmail, ses:SendRawEmail]
+                # Least-privilege: restrict to the verified identity passed in as SesFrom.
+                Resource:
+                  - !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFrom}"
+      Tags: [{Key: Project, Value: !Ref ProjectTag}]
+
+  AlbSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: caixa ALB ingress
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0}
+      Tags: [{Key: Project, Value: !Ref ProjectTag}]
+
+  TaskSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: caixa task ingress from ALB
+      VpcId: !Ref VpcId
+      Tags: [{Key: Project, Value: !Ref ProjectTag}]
+
+  TaskSgIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref TaskSg
+      IpProtocol: tcp
+      FromPort: 8080
+      ToPort: 8080
+      SourceSecurityGroupId: !Ref AlbSg
+
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: caixa-alb
+      Type: application
+      Scheme: internet-facing
+      Subnets: !Ref SubnetIds
+      SecurityGroups: [!Ref AlbSg]
+      Tags: [{Key: Project, Value: !Ref ProjectTag}]
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: caixa-tg
+      VpcId: !Ref VpcId
+      Port: 8080
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /healthz
+      HealthCheckIntervalSeconds: 20
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher: {HttpCode: "200"}
+      TargetGroupAttributes:
+        - {Key: stickiness.enabled, Value: "true"}
+        - {Key: stickiness.type, Value: lb_cookie}
+        - {Key: stickiness.lb_cookie.duration_seconds, Value: "86400"}
+        - {Key: deregistration_delay.timeout_seconds, Value: "15"}
+      Tags: [{Key: Project, Value: !Ref ProjectTag}]
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - {Type: forward, TargetGroupArn: !Ref TargetGroup}
+
+  TaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: caixa
+      Cpu: "1024"
+      Memory: "2048"
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: caixa
+          Image: !Ref ImageUri
+          Essential: true
+          PortMappings: [{ContainerPort: 8080, Protocol: tcp}]
+          Environment:
+            - {Name: AWS_REGION, Value: us-east-1}
+            - {Name: CAIXA_BUCKET, Value: !Ref BucketName}
+            - {Name: CAIXA_TABLE, Value: !Ref TableName}
+            - {Name: SES_FROM, Value: !Ref SesFrom}
+            - {Name: BEDROCK_MODEL_ID, Value: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"}
+            - {Name: BEDROCK_GUARDRAIL_ID, Value: !Ref GuardrailId}
+            - {Name: BEDROCK_GUARDRAIL_VERSION, Value: !Ref GuardrailVersion}
+            - {Name: CAIXA_CANONICAL_HOST, Value: !Ref CanonicalHost}
+            - {Name: AGENTCORE_RUNTIME_ARN, Value: !Ref AgentCoreRuntimeArn}
+            - {Name: CAIXA_AUTH_ENABLED, Value: !Ref AuthEnabled}
+            - {Name: CAIXA_AUTH_OIDC_ISSUER, Value: !Ref AuthOidcIssuer}
+            - {Name: CAIXA_AUTH_OIDC_CLIENT_ID, Value: !Ref AuthOidcClientId}
+            - {Name: CAIXA_PUBLIC_URL, Value: !Ref AuthPublicUrl}
+            - {Name: CAIXA_COGNITO_USER_POOL_ID, Value: !If [HasAuth, !Select [3, !Split ["/", !Ref AuthOidcIssuer]], ""]}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: caixa
+      Tags: [{Key: Project, Value: !Ref ProjectTag}]
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: Listener
+    Properties:
+      ServiceName: caixa
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref TaskDef
+      # ~70 participants + mentors hitting the URL simultaneously at T=0;
+      # spread across 2 AZs with at least 3 tasks so one AZ failure still leaves
+      # 2 tasks live and no single task gets hammered.
+      DesiredCount: 3
+      LaunchType: FARGATE
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 50
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Ref SubnetIds
+          SecurityGroups: [!Ref TaskSg]
+      LoadBalancers:
+        - {ContainerName: caixa, ContainerPort: 8080, TargetGroupArn: !Ref TargetGroup}
+      HealthCheckGracePeriodSeconds: 60
+      Tags: [{Key: Project, Value: !Ref ProjectTag}]
+
+  # Application Auto Scaling — keeps capacity between 3 and 10 tasks based
+  # on average CPU. Event traffic is bursty (30 users hit at T=0, long idle
+  # gaps, then briefing storms) so a target-tracking policy at 55% CPU is
+  # gentle enough to avoid flapping while still scaling out before the ALB
+  # target queue fills. Scale-out is faster than scale-in (60s vs 300s).
+  ScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn: Service
+    Properties:
+      ServiceNamespace: ecs
+      ScalableDimension: ecs:service:DesiredCount
+      ResourceId: !Sub "service/${Cluster}/caixa"
+      MinCapacity: 3
+      MaxCapacity: 10
+      RoleARN: !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService"
+
+  CpuScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: caixa-cpu-tracking
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 55.0
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+Outputs:
+  AlbDnsName: {Value: !GetAtt Alb.DNSName, Export: {Name: CaixaAlbDns}}

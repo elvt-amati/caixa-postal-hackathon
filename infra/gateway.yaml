@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: AgentCore Gateway with Cognito JWT authorizer (target attached separately via boto3)
+
+Parameters:
+  ProjectTag:       {Type: String, Default: hackathon-2026}
+  GatewayName:      {Type: String, Default: caixa-gw-v2}
+  UserPoolDiscoveryUrl:
+    Type: String
+    Default: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_5se0Sv7NA/.well-known/openid-configuration
+  AllowedAudiences: {Type: CommaDelimitedList, Description: Cognito app client ids accepted by Gateway}
+
+Resources:
+  # Role Gateway assumes to invoke downstream Lambda targets
+  GatewayServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: caixa-gateway-service
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: bedrock-agentcore.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: invoke-tools
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !ImportValue CaixaToolsFunctionArn
+      Tags: [{Key: Project, Value: !Ref ProjectTag}]
+
+  Gateway:
+    Type: AWS::BedrockAgentCore::Gateway
+    Properties:
+      Name: !Ref GatewayName
+      Description: Central MCP registry for Caixa Postal tools
+      ProtocolType: MCP
+      RoleArn: !GetAtt GatewayServiceRole.Arn
+      AuthorizerType: CUSTOM_JWT
+      AuthorizerConfiguration:
+        CustomJWTAuthorizer:
+          DiscoveryUrl: !Ref UserPoolDiscoveryUrl
+          AllowedAudience: !Ref AllowedAudiences
+      Tags:
+        Project: !Ref ProjectTag
+        Component: caixa-gateway
+
+Outputs:
+  GatewayArn:
+    Value: !GetAtt Gateway.GatewayArn
+    Export: {Name: CaixaGatewayArn}
+  GatewayUrl:
+    Value: !GetAtt Gateway.GatewayUrl
+    Export: {Name: CaixaGatewayUrl}
+  GatewayIdentifier:
+    Value: !GetAtt Gateway.GatewayIdentifier
+    Export: {Name: CaixaGatewayId}
+  ServiceRoleArn:
+    Value: !GetAtt GatewayServiceRole.Arn
+    Export: {Name: CaixaGatewayRoleArn}

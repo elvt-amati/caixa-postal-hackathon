@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudFront in front of the Caixa ALB — HTTPS via *.cloudfront.net, no ACM needed. Fixes Safari mic, prompt-attacks on mixed content.
+
+Parameters:
+  ProjectTag:   {Type: String, Default: hackathon-2026}
+  AlbDnsName:   {Type: String, Default: ""}
+
+Resources:
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: Caixa Postal — HTTPS viewer → HTTP ALB origin (intra-AWS backbone)
+        Enabled: true
+        IPV6Enabled: true
+        HttpVersion: http2and3
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: alb-origin
+            DomainName: !Ref AlbDnsName
+            CustomOriginConfig:
+              # ALB listens on :80 only. CF→ALB hop stays inside AWS — acceptable
+              # for a hackathon; for long-term we'd attach ACM + listener :443.
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+              OriginReadTimeout: 60
+              OriginKeepaliveTimeout: 60
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: alb-origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          # Managed-CachingDisabled — SSE/agent traffic is dynamic; caching would
+          # break streaming. Static assets can graduate to a separate behavior
+          # later if we want CDN benefits.
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          # Managed-AllViewer — forwards the viewer's Host header through to
+          # the ALB. Our ALB listener forwards all hosts to the one target
+          # group unconditionally, so keeping the viewer Host is safe and
+          # lets the backend distinguish "hit on canonical CF URL" from
+          # "hit on a participant fork's ALB DNS" for the /desafio redirect.
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+        # No Aliases / ViewerCertificate block → CF uses its default
+        # *.cloudfront.net certificate automatically (SNI SSL, TLSv1 SecurityPolicy).
+      Tags:
+        - {Key: Project, Value: !Ref ProjectTag}
+
+Outputs:
+  DistributionDomainName:
+    Value: !GetAtt Distribution.DomainName
+    Export: {Name: CaixaCloudFrontDomain}
+  DistributionId:
+    Value: !Ref Distribution
+    Export: {Name: CaixaCloudFrontId}

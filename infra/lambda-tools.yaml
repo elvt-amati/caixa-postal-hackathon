@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Consolidated Lambda for Caixa tools (invoked by AgentCore Gateway)
+
+Parameters:
+  ProjectTag: {Type: String, Default: hackathon-2026}
+  TableName:  {Type: String, Default: caixa-items}
+  SesFrom:    {Type: String, Default: ""}
+  CodeBucket: {Type: String, Description: S3 bucket with the Lambda zip}
+  CodeKey:    {Type: String, Default: lambda-tools.zip}
+
+Resources:
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: caixa-tools-lambda
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - {Effect: Allow, Principal: {Service: lambda.amazonaws.com}, Action: sts:AssumeRole}
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: caixa-tools-runtime
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TableName}"
+              - Effect: Allow
+                Action: [ses:SendEmail, ses:SendRawEmail]
+                # Scoped to the same SES identity used by the ECS backend
+                Resource:
+                  - !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFrom}"
+      Tags: [{Key: Project, Value: !Ref ProjectTag}]
+
+  Fn:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: caixa-tools
+      Runtime: python3.12
+      Handler: app.handler
+      Role: !GetAtt LambdaRole.Arn
+      MemorySize: 512
+      # 60s: Bedrock Converse streams can exceed 30s under load; tools themselves
+      # are fast (DynamoDB writes, SES send) but we want headroom for retries.
+      Timeout: 60
+      Environment:
+        Variables:
+          CAIXA_TABLE: !Ref TableName
+          SES_FROM: !Ref SesFrom
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Tags:
+        - {Key: Project, Value: !Ref ProjectTag}
+        - {Key: Component, Value: caixa-tools}
+
+  InvokePermissionForGateway:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Fn
+      Action: lambda:InvokeFunction
+      Principal: bedrock.amazonaws.com
+      # Confused-deputy guard: only this account's Bedrock (AgentCore
+      # Gateway) may invoke. Without this, any Bedrock principal in any
+      # account could call the function directly.
+      SourceAccount: !Ref "AWS::AccountId"
+
+Outputs:
+  FunctionArn:
+    Value: !GetAtt Fn.Arn
+    Export: {Name: CaixaToolsFunctionArn}
+  FunctionName:
+    Value: !Ref Fn
+    Export: {Name: CaixaToolsFunctionName}
